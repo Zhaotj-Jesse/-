@@ -1,0 +1,81 @@
+	import math
+	import random
+	import numpy as np
+	import networkx as nx
+	
+	gamma = 0.9
+	reward = np.array([-1, 0, 5, 10])
+	p = np.zeros((5, 5, 5, 5, 4, 4))
+	#first two are target location, second two are beginning location, fifth and sixth are strategy and reward index
+	#initial strategy is guessing equally
+	strategy = 0.25 * np.ones((5, 5, 4))
+	#we know p fully:
+	#edge
+	for i in range(0, 5):
+	p[0, i, 0, i, 0, 0] = 1
+	p[4, i, 4, i, 2, 0] = 1
+	p[i, 0, i, 0, 1, 0] = 1
+	p[i, 4, i, 4, 3, 0] = 1
+	#other cases
+	for i in range(0, 5):
+	for j in range(0, 5):
+	if i > 0:
+	p[i - 1, j, i, j, 0, 1] = 1
+	if i < 4:
+	p[i + 1, j, i, j, 2, 1] = 1
+	if j > 0:
+	p[i, j - 1, i, j, 1, 1] = 1
+	if j < 4:
+	p[i, j + 1, i, j, 3, 1] = 1
+	#except A and B
+	p[0, 1, 0, 1, 0, 0] = 0
+	p[0, 0, 0, 1, 1, 1] = 0
+	p[1, 1, 0, 1, 2, 1] = 0
+	p[0, 2, 0, 1, 3, 1] = 0
+	p[0, 3, 0, 3, 0, 0] = 0
+	p[0, 2, 0, 3, 1, 1] = 0
+	p[1, 3, 0, 3, 2, 1] = 0
+	p[0, 4, 0, 3, 3, 1] = 0
+	for k in range(0, 4):
+	p[4, 1, 0, 1, k, 3] = 1
+	p[2, 3, 0, 3, k, 2] = 1
+	re1 = np.einsum("abk,xyabkr->xyabr", strategy, p)
+	re = np.einsum("xyabr,r,xy->ab", re1, reward, np.ones((5, 5))).flatten()
+	minus = np.zeros((5, 5, 5, 5))
+	for i in range(4):
+	minus += re1[:, :, :, :, i]
+	minus = np.reshape(minus, (25, 25))
+	eye = np.eye(25)
+	epi = np.linalg.solve(eye - gamma * minus.T, re).reshape((5, 5))
+	value = epi
+	print(value)
+	t = 1
+	while t < 10:
+	improve = np.zeros((5, 5, 4))
+	for i in range(4):
+	improve[:, :, i] += reward[i] * np.ones((5, 5))
+	improve[:, :, i] += gamma * value
+	imp1 = np.einsum("xyabkr,xyr->abk", p, improve)
+	maxi = np.max(imp1, axis=2, keepdims=True)
+	indmax = np.isclose(imp1, maxi, atol=1e-6)
+	counts = np.sum(indmax, axis=2, keepdims=True)
+	result = np.zeros((5, 5, 4))
+	counts = np.tile(counts, (1, 1, 4))
+	result[indmax] = 1 / counts[indmax]
+	strategy = result
+	
+	re1 = np.einsum("abk,xyabkr->xyabr", strategy, p)
+	re = np.einsum("xyabr,r,xy->ab", re1, reward, np.ones((5, 5))).flatten()
+	minus = np.zeros((5, 5, 5, 5))
+	for i in range(4):
+	minus += re1[:, :, :, :, i]
+	minus = np.reshape(minus, (25, 25))
+	eye = np.eye(25)
+	epi = np.linalg.solve(eye - gamma * minus.T, re).reshape((5, 5))
+	
+	if np.linalg.norm(value-epi) < 1e-8:
+	break
+	value = epi
+	print(value)
+	t += 1
+	print(t)
